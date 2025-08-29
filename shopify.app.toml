@@ -2,12 +2,13 @@
 
 client_id = "3018cfd386eea6aaa91373714487619e"
 name = "new-app"
-application_url = "https://guyana-talented-televisions-cases.trycloudflare.com"
+application_url = "https://classified-cross-tune-foster.trycloudflare.com"
 embedded = true
 handle = "new-app-1034"
 
 [build]
 automatically_update_urls_on_dev = true
+include_config_on_deploy = true
 
 [webhooks]
 api_version = "2025-07"
@@ -22,10 +23,10 @@ api_version = "2025-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_files,read_products,read_themes,write_products"
+scopes = "read_files,read_products,read_themes,write_products,write_product_listings,read_product_listings"
 
 [auth]
-redirect_urls = ["https://guyana-talented-televisions-cases.trycloudflare.com/auth/callback", "https://guyana-talented-televisions-cases.trycloudflare.com/auth/shopify/callback", "https://guyana-talented-televisions-cases.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://classified-cross-tune-foster.trycloudflare.com/auth/callback", "https://classified-cross-tune-foster.trycloudflare.com/auth/shopify/callback", "https://classified-cross-tune-foster.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false

@@ -9,6 +9,7 @@ import productCreator from "./product-creator.js";
 import PrivacyWebhookHandlers from "./privacy.js";
 import shopRouter from "./shop.js";
 import { connectDatabase } from "./dbSample.js";
+import saveCommentProduct from "./saveCommentProduct.js";
 
 const PORT = parseInt(
   process.env.BACKEND_PORT || process.env.PORT || "3000",
@@ -37,10 +38,13 @@ app.post(
 // If you are adding routes outside of the /api path, remember to
 // also add a proxy rule for them in web/frontend/vite.config.js
 
+
+app.use(express.json()); 
+
 app.use("/api", shopify.validateAuthenticatedSession(), shopRouter);
 
+app.use("/api", shopify.validateAuthenticatedSession(), saveCommentProduct);
 
-app.use(express.json());
 
 app.get("/api/products/count", async (_req, res) => {
   const client = new shopify.api.clients.Graphql({
@@ -72,6 +76,38 @@ app.post("/api/products", async (_req, res) => {
   res.status(status).send({ success: status === 200, error });
 });
 
+app.get("/api/products/list", async (req, res) => {
+  try {
+    const client = new shopify.api.clients.Graphql({
+      session: res.locals.shopify.session,
+    });
+
+    const response = await client.request(`
+      query {
+        products(first: 20) {
+          edges {
+            node {
+              id
+              title
+            }
+          }
+        }
+      }
+    `);
+
+    const products = response.data.products.edges.map((edge) => ({
+      id: edge.node.id,
+      title: edge.node.title,
+    }));
+
+    res.status(200).json(products);
+  } catch (e) {
+    console.error("❌ Failed to fetch products:", e);
+    res.status(500).json({ error: e.message });
+  }
+});
+
+
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
 
@@ -89,7 +125,7 @@ app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
 async function startServer() { 
   await connectDatabase(); // ✅ gọi DB connect trước 
   app.listen(PORT, () => { 
-    console.log("🚀 Server is running on http://localhost:${PORT}"); 
+    console.log(`🚀 Server is running on http://localhost:${PORT}`); 
   }); 
 } 
 

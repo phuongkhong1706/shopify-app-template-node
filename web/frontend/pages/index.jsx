@@ -17,6 +17,8 @@ import { ProductsCard } from "../components";
 
 import { ShopInfoCard } from "../components/ShopInfoCard";
 
+import { ProductCmtCard } from "../components/ProductCmtCard";
+
 export default function HomePage() {
   const { t } = useTranslation();
   return (
@@ -109,6 +111,9 @@ export default function HomePage() {
         </Layout.Section>
         <Layout.Section>
           <ShopInfoCard />
+        </Layout.Section>
+        <Layout.Section>
+          <ProductCmtCard />
         </Layout.Section>
       </Layout>
     </Page>
