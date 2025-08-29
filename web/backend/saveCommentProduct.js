@@ -1,6 +1,6 @@
 // saveCommentProduct.js
 import express from "express";
-import shopify from "./shopify.js";
+import shopify from "../shopify.js";
 import mongoose from "mongoose";
 
 // Mongo Schema

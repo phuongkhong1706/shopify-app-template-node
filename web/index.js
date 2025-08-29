@@ -5,11 +5,11 @@ import express from "express";
 import serveStatic from "serve-static";
 
 import shopify from "./shopify.js";
-import productCreator from "./product-creator.js";
+import productCreator from "./backend/product-creator.js";
 import PrivacyWebhookHandlers from "./privacy.js";
-import shopRouter from "./shop.js";
-import { connectDatabase } from "./dbSample.js";
-import saveCommentProduct from "./saveCommentProduct.js";
+import shopRouter from "./backend/shop.js";
+import { connectDatabase } from "./backend/dbSample.js";
+import saveCommentProduct from "./backend/saveCommentProduct.js";
 
 const PORT = parseInt(
   process.env.BACKEND_PORT || process.env.PORT || "3000",

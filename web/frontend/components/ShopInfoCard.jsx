@@ -21,9 +21,9 @@ export function ShopInfoCard() {
                         <Text as="h4" variant="headingMd">
                             🏪 {data.name}
                         </Text>
-                        <p>Domain: {data.myshopifyDomain}</p>
+                        <p>Domain: {data.myshopify_domain}</p>
                         <p>Email: {data.email || data.contactEmail}</p>
-                        <p>Plan: {data.plan?.displayName}</p>
+                        <p>Plan: {data.plan_display_name}</p>
 
                         {data.billingAddress && (
                             <>
@@ -37,8 +37,6 @@ export function ShopInfoCard() {
                         )}
                     </>
                 )}
-
-
             </TextContainer>
         </Card>
     );

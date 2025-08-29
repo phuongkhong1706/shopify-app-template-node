@@ -1,0 +1,10 @@
+name = "metafield-display"
+type = "theme"
+
+[[blocks]]
+name = "Product comment display" # Tên hiển thị trong Theme Editor
+target = "shopify::product_sections::template" # Nơi block này sẽ được chèn vào
+# file là đường dẫn tương đối từ gốc của extension đến file Liquid
+# Ví dụ: nếu file của bạn ở extensions/product-comment-display/blocks/metafield_display.liquid
+# thì file = "blocks/metafield_display.liquid"
+file = "blocks/metafield_display.liquid" 
