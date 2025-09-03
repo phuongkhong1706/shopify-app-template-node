@@ -7,7 +7,7 @@ const router = express.Router();
 
 router.get("/", authMiddleware, async (req, res) => {
   try {
-    const stores = await Store.find({}, { shop: 1, name: 1, email: 1, installedAt: 1, domain: 1 });
+    const stores = await Store.find({}, { id: 1, shop: 1, name: 1, email: 1, installedAt: 1, domain: 1 });
     res.json(stores);
   } catch (err) {
     console.error(err);

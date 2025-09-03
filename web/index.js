@@ -13,6 +13,7 @@ import saveCommentProduct from "./backend/saveCommentProduct.js";
 import authRouter, { authMiddleware } from "./backend/admin/auth.js";
 import storeRouter from "./backend/admin/stores.js";
 import Store from "./models/Store.js";
+import productRouter from "./backend/admin/productslist.js";
 
 const PORT = parseInt(
   process.env.BACKEND_PORT || process.env.PORT || "3000",
@@ -47,6 +48,7 @@ app.get(shopify.config.auth.callbackPath, shopify.auth.callback(), async (req, r
       myshopify_domain: shopData.myshopify_domain,
       accessToken: session.accessToken, // offline token
       installedAt: new Date(),
+      shopID: shopData.id,
     },
     { upsert: true, new: true }
   );
@@ -66,7 +68,8 @@ app.post(
 app.use(express.json()); 
 app.use("/api/admin", authRouter);
 app.use("/api/admin/stores", storeRouter); // danh sách store
-
+app.use("/api/admin/productslist", productRouter);
+    
 
 app.use("/api", shopify.validateAuthenticatedSession(), shopRouter);
 

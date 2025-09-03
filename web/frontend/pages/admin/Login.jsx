@@ -12,7 +12,7 @@ export default function LoginPage() {
   useEffect(() => {
     const token = localStorage.getItem("authToken");
     if (token) {
-      window.location.href = "/admin/dashboard";
+      window.location.href = "/admin/store";
     }
   }, []);
 

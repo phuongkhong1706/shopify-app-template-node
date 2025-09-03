@@ -11,6 +11,13 @@ export default function App() {
   const pages = import.meta.glob("./pages/**/!(*.test.[jt]sx)*.([jt]sx)", {
     eager: true,
   });
+  const routes = Object.entries(pages).map(([path, module]) => {
+    const routePath = path
+      .replace("./pages", "")       // bỏ ./pages
+      .replace(/\.jsx?$/, "")      // bỏ .jsx
+      .replace(/\[([^\]]+)\]/g, ":$1"); // [shopId] → :shopId
+    return { path: routePath, element: module.default };
+  });
   const { t } = useTranslation();
 
   return (
