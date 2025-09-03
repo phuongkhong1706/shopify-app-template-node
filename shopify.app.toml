@@ -2,7 +2,7 @@
 
 client_id = "3018cfd386eea6aaa91373714487619e"
 name = "new-app"
-application_url = "https://hat-table-chemicals-lincoln.trycloudflare.com"
+application_url = "https://cadillac-purchases-cars-handled.trycloudflare.com"
 embedded = true
 handle = "new-app-1034"
 
@@ -23,10 +23,10 @@ api_version = "2025-07"
 
 [access_scopes]
 # Learn more at https://shopify.dev/docs/apps/tools/cli/configuration#access_scopes
-scopes = "read_files,read_products,read_themes,write_products,write_product_listings,read_product_listings"
+scopes = "read_files,read_product_listings,read_products,read_themes,write_product_listings,write_products"
 
 [auth]
-redirect_urls = ["https://hat-table-chemicals-lincoln.trycloudflare.com/auth/callback", "https://hat-table-chemicals-lincoln.trycloudflare.com/auth/shopify/callback", "https://hat-table-chemicals-lincoln.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://cadillac-purchases-cars-handled.trycloudflare.com/auth/callback", "https://cadillac-purchases-cars-handled.trycloudflare.com/auth/shopify/callback", "https://cadillac-purchases-cars-handled.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false

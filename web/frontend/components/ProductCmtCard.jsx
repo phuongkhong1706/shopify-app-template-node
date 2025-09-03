@@ -116,9 +116,12 @@ export function ProductCmtCard() {
                     autoComplete="off"
                     placeholder="Enter your comment here..."
                 />
-                <Button primary onClick={handleSave} loading={false}> {/* Thêm loading state nếu cần */}
-                    Save Comment
-                </Button>
+                {/* ✅ Hàng nút */}
+                <Stack distribution="equalSpacing" alignment="center">
+                    <Button primary onClick={handleSave} loading={false}> {/* Thêm loading state nếu cần */}
+                        Save Comment
+                    </Button>
+                </Stack>
             </Stack>
         </Card>
     );

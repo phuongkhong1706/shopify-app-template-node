@@ -19,6 +19,8 @@ import { ShopInfoCard } from "../components/ShopInfoCard";
 
 import { ProductCmtCard } from "../components/ProductCmtCard";
 
+import LoginButton from "../components/LoginButton";
+
 export default function HomePage() {
   const { t } = useTranslation();
   return (
@@ -114,6 +116,9 @@ export default function HomePage() {
         </Layout.Section>
         <Layout.Section>
           <ProductCmtCard />
+        </Layout.Section>
+        <Layout.Section>
+          <LoginButton />
         </Layout.Section>
       </Layout>
     </Page>

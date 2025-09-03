@@ -111,6 +111,18 @@ app.get("/api/products/list", async (req, res) => {
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
 
+// ⚡ Serve standalone path /admin/*
+app.get("/admin/*", async (_req, res) => {
+  return res
+    .status(200)
+    .set("Content-Type", "text/html")
+    .send(
+      readFileSync(join(STATIC_PATH, "index.html")).toString()
+        // Không cần replace API_KEY vì UI này không embed trong Shopify
+    );
+});
+
+
 app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
   return res
     .status(200)
