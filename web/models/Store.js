@@ -19,6 +19,7 @@ const storeSchema = new Schema({
   address2: { type: String },
   phone: { type: String, required: true },
   shop_created_at: { type: String, required: true },
+  installedAt: { type: Date, default: Date.now },
   // THÊM TRƯỜNG ACCESS TOKEN VÀO ĐÂY
   accessToken: { type: String, required: true }, // RẤT QUAN TRỌNG!
   // THÊM TRƯỜNG REFRESH TOKEN (nếu bạn sử dụng offline access mode với refresh token)

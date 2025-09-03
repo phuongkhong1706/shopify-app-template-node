@@ -10,6 +10,9 @@ import PrivacyWebhookHandlers from "./privacy.js";
 import shopRouter from "./backend/shop.js";
 import { connectDatabase } from "./backend/dbSample.js";
 import saveCommentProduct from "./backend/saveCommentProduct.js";
+import authRouter, { authMiddleware } from "./backend/admin/auth.js";
+import storeRouter from "./backend/admin/stores.js";
+import Store from "./models/Store.js";
 
 const PORT = parseInt(
   process.env.BACKEND_PORT || process.env.PORT || "3000",
@@ -25,11 +28,32 @@ const app = express();
 
 // Set up Shopify authentication and webhook handling
 app.get(shopify.config.auth.path, shopify.auth.begin());
-app.get(
-  shopify.config.auth.callbackPath,
-  shopify.auth.callback(),
-  shopify.redirectToShopifyOrAppRoot()
-);
+app.get(shopify.config.auth.callbackPath, shopify.auth.callback(), async (req, res) => {
+  const session = res.locals.shopify.session;
+
+  // Lấy thông tin shop
+  const client = new shopify.api.clients.Rest({ session });
+  const shopInfo = await client.get({ path: "shop" });
+  const shopData = shopInfo.body.shop;
+
+  // Lưu hoặc cập nhật offline token
+  await Store.findOneAndUpdate(
+    { shop: shopData.name },
+    {
+      shop: shopData.name,
+      name: shopData.name,
+      email: shopData.email,
+      domain: shopData.domain,
+      myshopify_domain: shopData.myshopify_domain,
+      accessToken: session.accessToken, // offline token
+      installedAt: new Date(),
+    },
+    { upsert: true, new: true }
+  );
+
+  // Redirect về frontend dashboard
+  return res.redirect("/admin/store");
+});
 app.post(
   shopify.config.webhooks.path,
   shopify.processWebhooks({ webhookHandlers: PrivacyWebhookHandlers })
@@ -40,10 +64,15 @@ app.post(
 
 
 app.use(express.json()); 
+app.use("/api/admin", authRouter);
+app.use("/api/admin/stores", storeRouter); // danh sách store
+
 
 app.use("/api", shopify.validateAuthenticatedSession(), shopRouter);
 
 app.use("/api", shopify.validateAuthenticatedSession(), saveCommentProduct);
+
+
 
 
 app.get("/api/products/count", async (_req, res) => {
