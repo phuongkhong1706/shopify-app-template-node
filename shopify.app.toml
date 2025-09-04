@@ -2,7 +2,7 @@
 
 client_id = "3018cfd386eea6aaa91373714487619e"
 name = "new-app"
-application_url = "https://chem-um-first-thermal.trycloudflare.com"
+application_url = "https://dog-sept-tumor-enabling.trycloudflare.com"
 embedded = true
 handle = "new-app-1034"
 
@@ -26,7 +26,7 @@ api_version = "2025-07"
 scopes = "read_files,read_product_listings,read_products,read_themes,write_product_listings,write_products"
 
 [auth]
-redirect_urls = ["https://chem-um-first-thermal.trycloudflare.com/auth/callback", "https://chem-um-first-thermal.trycloudflare.com/auth/shopify/callback", "https://chem-um-first-thermal.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://dog-sept-tumor-enabling.trycloudflare.com/auth/callback", "https://dog-sept-tumor-enabling.trycloudflare.com/auth/shopify/callback", "https://dog-sept-tumor-enabling.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false
