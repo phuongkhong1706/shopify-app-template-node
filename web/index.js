@@ -70,7 +70,7 @@ app.use(express.json());
 app.use("/api/admin", authRouter);
 app.use("/api/admin/stores", storeRouter); // danh sách store
 app.use("/api/admin/productslist", productRouter);
-app.use("/api/admin/files", filesApi);
+app.use("/api/admin/files", shopify.validateAuthenticatedSession(),filesApi);
     
 
 app.use("/api", shopify.validateAuthenticatedSession(), shopRouter);
