@@ -14,6 +14,7 @@ import authRouter, { authMiddleware } from "./backend/admin/auth.js";
 import storeRouter from "./backend/admin/stores.js";
 import Store from "./models/Store.js";
 import productRouter from "./backend/admin/productslist.js";
+import filesApi from "./backend/admin/files.js";
 
 const PORT = parseInt(
   process.env.BACKEND_PORT || process.env.PORT || "3000",
@@ -69,6 +70,7 @@ app.use(express.json());
 app.use("/api/admin", authRouter);
 app.use("/api/admin/stores", storeRouter); // danh sách store
 app.use("/api/admin/productslist", productRouter);
+app.use("/api/admin/files", filesApi);
     
 
 app.use("/api", shopify.validateAuthenticatedSession(), shopRouter);

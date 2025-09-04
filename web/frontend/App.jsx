@@ -28,6 +28,7 @@ export default function App() {
             <Link to="/" rel="home" />
             <Link to="/pagename">{t("NavigationMenu.pageName")}</Link>
             <Link to="/admin/login">{t("Login")}</Link>
+            <Link to="/admin/files">{t("Files")}</Link>
           </NavMenu>
           <Routes pages={pages} />
         </QueryProvider>
