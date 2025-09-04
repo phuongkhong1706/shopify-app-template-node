@@ -12,8 +12,10 @@
     "deploy": "shopify app deploy"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "^3.879.0",
     "@shopify/app": "^3.0.0",
     "@shopify/cli": "^3.0.0",
+    "form-data": "^4.0.4",
     "mongoose": "^8.18.0",
     "node-fetch": "^3.3.2",
     "sharp": "^0.34.3"

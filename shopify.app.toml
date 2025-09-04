@@ -2,7 +2,7 @@
 
 client_id = "3018cfd386eea6aaa91373714487619e"
 name = "new-app"
-application_url = "https://photographic-accent-poison-achieving.trycloudflare.com"
+application_url = "https://frequencies-smith-amber-direction.trycloudflare.com"
 embedded = true
 handle = "new-app-1034"
 
@@ -26,7 +26,7 @@ api_version = "2025-07"
 scopes = "read_files,read_product_listings,read_products,read_themes,write_product_listings,write_products, write_files, write_themes"
 
 [auth]
-redirect_urls = ["https://photographic-accent-poison-achieving.trycloudflare.com/auth/callback", "https://photographic-accent-poison-achieving.trycloudflare.com/auth/shopify/callback", "https://photographic-accent-poison-achieving.trycloudflare.com/api/auth/callback"]
+redirect_urls = ["https://frequencies-smith-amber-direction.trycloudflare.com/auth/callback", "https://frequencies-smith-amber-direction.trycloudflare.com/auth/shopify/callback", "https://frequencies-smith-amber-direction.trycloudflare.com/api/auth/callback"]
 
 [pos]
 embedded = false

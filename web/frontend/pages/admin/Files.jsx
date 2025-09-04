@@ -1,4 +1,3 @@
-// web/frontend/pages/Files.jsx
 import { useEffect, useState } from "react";
 import {
   Page,
@@ -19,9 +18,8 @@ export default function Files() {
   const [loading, setLoading] = useState(true);
   const [files, setFiles] = useState([]);
   const [error, setError] = useState(null);
-  const [optimizingId, setOptimizingId] = useState(null); // numeric ID ảnh đang optimize
+  const [optimizingId, setOptimizingId] = useState(null);
 
-  // Hàm tách numeric ID từ GID
   const getNumericIdFromGid = (gid) => gid.split("/").pop();
 
   async function fetchFiles() {
@@ -32,7 +30,7 @@ export default function Files() {
       const data = await res.json();
       setFiles(data.files || []);
     } catch (err) {
-      console.error("❌ Error fetching files:", err);
+      console.error("Error fetching files:", err);
       setError("Không thể tải danh sách file từ Shopify.");
     } finally {
       setLoading(false);
@@ -44,7 +42,7 @@ export default function Files() {
   }, []);
 
   const handleOptimize = async (gid) => {
-    const fileId = getNumericIdFromGid(gid); // numeric ID
+    const fileId = getNumericIdFromGid(gid);
     setOptimizingId(fileId);
 
     try {
@@ -52,9 +50,17 @@ export default function Files() {
       const data = await resp.json();
 
       if (data.success) {
-        // update size trong state
         setFiles((prev) =>
-          prev.map((f) => (f.id === gid ? { ...f, size: data.file.size } : f))
+          prev.map((f) =>
+            f.id === gid
+              ? {
+                  ...f,
+                  id: data.file.id, // ID mới
+                  image: { ...f.image, url: data.file.url, width: data.file.width, height: data.file.height },
+                  size: data.file.size,
+                }
+              : f
+          )
         );
       } else {
         alert("Optimize thất bại: " + data.message);

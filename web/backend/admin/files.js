@@ -1,8 +1,8 @@
-// web/backend/admin/files.js
 import express from "express";
 import shopify from "../../shopify.js";
 import fetch from "node-fetch";
 import sharp from "sharp";
+
 
 const router = express.Router();
 
@@ -44,14 +44,13 @@ router.get("/", shopify.validateAuthenticatedSession(), async (req, res) => {
         const node = edge.node;
         const numericId = node.id.split("/").pop();
 
-        // Lấy dung lượng ảnh (fetch head)
         let size = null;
         try {
           const head = await fetch(node.image.url, { method: "HEAD" });
-          size = head.headers.get("content-length") || null;
-          if (size) size = parseInt(size, 10); // bytes
+          size = head.headers.get("content-length");
+          if (size) size = parseInt(size, 10);
         } catch (e) {
-          console.warn("Không thể lấy size:", node.image.url);
+          console.warn("Cannot fetch size for:", node.image.url);
         }
 
         return { ...node, numericId, size };
@@ -59,8 +58,8 @@ router.get("/", shopify.validateAuthenticatedSession(), async (req, res) => {
     );
 
     res.status(200).json({ files });
-  } catch (error) {
-    console.error("❌ Error fetching files:", error);
+  } catch (err) {
+    console.error("Error fetching files:", err);
     res.status(500).json({ error: "Failed to fetch files" });
   }
 });
@@ -69,7 +68,6 @@ router.get("/", shopify.validateAuthenticatedSession(), async (req, res) => {
  * POST /api/admin/files/optimize/:id
  * Optimize 1 file dựa trên numericId
  */
-// web/backend/admin/files.js
 router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req, res) => {
   try {
     const { id } = req.params;
@@ -96,12 +94,14 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
     const node = fileData.body.data.node;
     if (!node) return res.status(404).json({ success: false, message: "File not found" });
 
-    // 2️⃣ Fetch ảnh gốc với User-Agent để tránh lỗi
-    const response = await fetch(node.image.url, {
-      headers: { "User-Agent": "Mozilla/5.0" },
-    });
+    console.log("📌 Lấy ảnh gốc:", node.image.url);
+
+    // 2️⃣ Fetch ảnh gốc
+    const response = await fetch(node.image.url, { headers: { "User-Agent": "Mozilla/5.0" } });
     if (!response.ok) return res.status(400).json({ success: false, message: "Cannot fetch original image" });
+
     const buffer = Buffer.from(await response.arrayBuffer());
+    console.log("📌 Kích thước ảnh gốc:", buffer.length, "bytes");
 
     // 3️⃣ Optimize bằng Sharp
     const optimizedBuffer = await sharp(buffer)
@@ -109,33 +109,120 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
       .jpeg({ quality: 70 })
       .toBuffer();
 
-    // 4️⃣ Kiểm tra size
-    if (optimizedBuffer.length > 20 * 1024 * 1024) {
-      return res.status(400).json({ success: false, message: "File quá lớn (>20MB)" });
-    }
+    console.log("✅ Optimize xong, kích thước ảnh:", optimizedBuffer.length, "bytes");
 
-    // 5️⃣ Upload lại lên Shopify dưới dạng Base64
-    const dataUri = `data:image/jpeg;base64,${optimizedBuffer.toString("base64")}`;
-    const uploadResp = await client.query({
+    // 4️⃣ Gọi stagedUploadsCreate để lấy URL upload tạm
+    const stagedUploadResp = await client.query({
       data: {
-        query: `mutation fileCreate($files: [FileCreateInput!]!) {
-          fileCreate(files: $files) {
-            files { ... on MediaImage { id image { url width height } } }
-            userErrors { field message }
+        query: `
+          mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+            stagedUploadsCreate(input: $input) {
+              stagedTargets {
+                url
+                resourceUrl
+                parameters { name value }
+              }
+              userErrors { field message }
+            }
           }
-        }`,
+        `,
         variables: {
-          files: [{ originalSource: dataUri, alt: node.alt || "" }],
+          input: [
+            {
+              filename: `optimized-${id}.jpg`,
+              mimeType: "image/jpeg",
+              httpMethod: "POST",
+              resource: "FILE",
+            },
+          ],
         },
       },
     });
 
-    const userErrors = uploadResp.body.data.fileCreate.userErrors;
-    if (userErrors.length > 0) {
-      return res.status(500).json({ success: false, message: userErrors.map(e => e.message).join(", ") });
+    console.log("📌 stagedUploadResp:", JSON.stringify(stagedUploadResp.body, null, 2));
+
+    const stagedResp = stagedUploadResp.body?.data?.stagedUploadsCreate;
+    if (!stagedResp) {
+      return res.status(500).json({ success: false, message: "stagedUploadsCreate trả về null" });
     }
 
-    const optimizedFile = uploadResp.body.data.fileCreate.files[0];
+    const stagedTarget = stagedResp.stagedTargets?.[0];
+    if (!stagedTarget) {
+      console.error("❌ Lỗi userErrors:", stagedResp.userErrors);
+      return res.status(500).json({
+        success: false,
+        message: stagedResp.userErrors?.map(e => e.message).join(", ") || "Không có stagedTargets",
+      });
+    }
+
+    // 5️⃣ Upload file binary lên S3
+    const FormData = (await import("form-data")).default;
+    const form = new FormData();
+    stagedTarget.parameters.forEach((param) => {
+      form.append(param.name, param.value);
+    });
+    form.append("file", optimizedBuffer, {
+      filename: `optimized-${id}.jpg`,
+      contentType: "image/jpeg",
+    });
+
+    const s3Resp = await fetch(stagedTarget.url, {
+      method: "POST",
+      body: form,
+    });
+
+    if (!s3Resp.ok) {
+      throw new Error(`Upload S3 thất bại: ${s3Resp.statusText}`);
+    }
+
+    // 6️⃣ Gọi fileCreate để finalize file
+    const fileCreateResp = await client.query({
+      data: {
+        query: `
+          mutation fileCreate($files: [FileCreateInput!]!) {
+            fileCreate(files: $files) {
+              files {
+                ... on MediaImage {
+                  id
+                  image { url width height }
+                }
+              }
+              userErrors { field message }
+            }
+          }
+        `,
+        variables: {
+          files: [
+            {
+              originalSource: stagedTarget.resourceUrl,
+              alt: node.alt || "",
+            },
+          ],
+        },
+      },
+    });
+
+    const result = fileCreateResp.body.data.fileCreate;
+    if (result.userErrors.length > 0) {
+      console.error("❌ Lỗi khi fileCreate:", result.userErrors);
+      return res.status(500).json({ success: false, message: result.userErrors.map(e => e.message).join(", ") });
+    }
+
+    const optimizedFile = result.files[0];
+    if (!optimizedFile.image) {
+      console.warn("⚠️ FileCreate thành công nhưng chưa có image metadata. ID:", optimizedFile.id);
+      return res.json({
+        success: true,
+        file: {
+          id: optimizedFile.id,
+          url: null, // client cần fetch lại sau
+          size: optimizedBuffer.length,
+        },
+      });
+    }
+
+    console.log("✅ Upload thành công:", optimizedFile.image.url);
+
     res.json({
       success: true,
       file: {
@@ -148,10 +235,11 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
     });
 
   } catch (err) {
-    console.error("❌ Error optimizing file:", err);
+    console.error("Error optimizing file:", err);
     res.status(500).json({ success: false, message: err.message });
   }
 });
+
 
 
 export default router;
