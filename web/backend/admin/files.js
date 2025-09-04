@@ -7,6 +7,33 @@ import sharp from "sharp";
 const router = express.Router();
 
 /**
+ * Hàm retry lấy image.url sau khi fileCreate
+ */
+async function waitForImage(client, id, retries = 3, delay = 1500) {
+  for (let i = 0; i < retries; i++) {
+    const resp = await client.query({
+      data: {
+        query: `query getFile($id: ID!) {
+          node(id: $id) {
+            ... on MediaImage {
+              id
+              image { url width height }
+            }
+          }
+        }`,
+        variables: { id },
+      },
+    });
+
+    const file = resp.body.data.node;
+    if (file?.image?.url) return file; // ✅ có url thì return ngay
+
+    console.log(`⏳ Chưa có image.url, retry ${i + 1}/${retries}...`);
+    await new Promise(r => setTimeout(r, delay));
+  }
+  return null; // hết retries vẫn chưa có url
+}
+/**
  * GET /api/admin/files
  * Lấy danh sách file (ảnh) từ Shopify Files API
  */
@@ -111,7 +138,7 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
 
     console.log("✅ Optimize xong, kích thước ảnh:", optimizedBuffer.length, "bytes");
 
-    // 4️⃣ Gọi stagedUploadsCreate để lấy URL upload tạm
+    // 4️⃣ stagedUploadsCreate
     const stagedUploadResp = await client.query({
       data: {
         query: `
@@ -139,19 +166,13 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
       },
     });
 
-    console.log("📌 stagedUploadResp:", JSON.stringify(stagedUploadResp.body, null, 2));
-
     const stagedResp = stagedUploadResp.body?.data?.stagedUploadsCreate;
-    if (!stagedResp) {
-      return res.status(500).json({ success: false, message: "stagedUploadsCreate trả về null" });
-    }
-
-    const stagedTarget = stagedResp.stagedTargets?.[0];
+    const stagedTarget = stagedResp?.stagedTargets?.[0];
     if (!stagedTarget) {
-      console.error("❌ Lỗi userErrors:", stagedResp.userErrors);
+      console.error("❌ Lỗi stagedUpload:", stagedResp?.userErrors);
       return res.status(500).json({
         success: false,
-        message: stagedResp.userErrors?.map(e => e.message).join(", ") || "Không có stagedTargets",
+        message: stagedResp?.userErrors?.map(e => e.message).join(", ") || "Không có stagedTargets",
       });
     }
 
@@ -170,12 +191,9 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
       method: "POST",
       body: form,
     });
+    if (!s3Resp.ok) throw new Error(`Upload S3 thất bại: ${s3Resp.statusText}`);
 
-    if (!s3Resp.ok) {
-      throw new Error(`Upload S3 thất bại: ${s3Resp.statusText}`);
-    }
-
-    // 6️⃣ Gọi fileCreate để finalize file
+    // 6️⃣ fileCreate
     const fileCreateResp = await client.query({
       data: {
         query: `
@@ -208,28 +226,20 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
       return res.status(500).json({ success: false, message: result.userErrors.map(e => e.message).join(", ") });
     }
 
-    const optimizedFile = result.files[0];
-    if (!optimizedFile.image) {
-      console.warn("⚠️ FileCreate thành công nhưng chưa có image metadata. ID:", optimizedFile.id);
-      return res.json({
-        success: true,
-        file: {
-          id: optimizedFile.id,
-          url: null, // client cần fetch lại sau
-          size: optimizedBuffer.length,
-        },
-      });
+    let optimizedFile = result.files[0];
+    if (!optimizedFile.image?.url) {
+      console.log("⚠️ fileCreate chưa có image.url, chờ Shopify index...");
+      const retryFile = await waitForImage(client, optimizedFile.id, 5, 2000);
+      if (retryFile) optimizedFile = retryFile;
     }
-
-    console.log("✅ Upload thành công:", optimizedFile.image.url);
 
     res.json({
       success: true,
       file: {
         id: optimizedFile.id,
-        url: optimizedFile.image.url,
-        width: optimizedFile.image.width,
-        height: optimizedFile.image.height,
+        url: optimizedFile.image?.url || null,
+        width: optimizedFile.image?.width || null,
+        height: optimizedFile.image?.height || null,
         size: optimizedBuffer.length,
       },
     });
@@ -239,7 +249,5 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
     res.status(500).json({ success: false, message: err.message });
   }
 });
-
-
 
 export default router;
