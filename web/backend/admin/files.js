@@ -2,7 +2,7 @@ import express from "express";
 import shopify from "../../shopify.js";
 import fetch from "node-fetch";
 import sharp from "sharp";
-
+import ShopImage from "../../models/ShopImages.js";
 
 const router = express.Router();
 
@@ -233,6 +233,88 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
       if (retryFile) optimizedFile = retryFile;
     }
 
+    // ✅ Lưu vào MongoDB
+    await ShopImage.create({
+      shop: res.locals.shopify.session.shop,
+      sourceType: "optimized",  // hoặc "upload" tuỳ trường hợp
+      originalMediaImageId: node.id,
+      originalUrl: node.image.url,
+      mediaImageId: optimizedFile.id,
+      url: optimizedFile.image?.url,
+      width: optimizedFile.image?.width,
+      height: optimizedFile.image?.height,
+      size: optimizedBuffer.length,
+      filename: `optimized-${id}.jpg`,
+    });
+    console.log("✅ Lưu ShopImage vào DB thành công");
+    
+    // ✅ Lấy metafield cũ (optimized_images)
+const existing = await client.query({
+  data: {
+    query: `
+      query getShopMetafield($namespace: String!, $key: String!) {
+        shop {
+          metafield(namespace: $namespace, key: $key) {
+            id
+            value
+          }
+        }
+      }
+    `,
+    variables: { namespace: "optimized_files", key: "optimized_images" },
+  },
+});
+
+let mapping = {};
+const current = existing.body.data.shop.metafield;
+if (current?.value) {
+  try {
+    mapping = JSON.parse(current.value);
+  } catch (e) {
+    console.warn("⚠️ Không parse được metafield JSON:", e);
+  }
+}
+
+// ✅ Cập nhật mapping mới
+mapping[node.image.url] = optimizedFile.image?.url;
+
+// Lấy globalId của shop
+const shopResp = await client.query({
+  data: `query { shop { id } }`,
+});
+const shopId = shopResp.body.data.shop.id;
+
+// ✅ Ghi lại metafield JSON
+const metafieldResp = await client.query({
+  data: {
+    query: `
+      mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { key namespace type value }
+          userErrors { field message }
+        }
+      }
+    `,
+    variables: {
+      metafields: [
+        {
+          namespace: "files",
+          key: "optimized_images",
+          type: "json",
+          value: JSON.stringify(mapping),
+          ownerId: shopId, // shop
+        },
+      ],
+    },
+  },
+});
+
+if (metafieldResp.body.data.metafieldsSet.userErrors.length > 0) {
+  console.error("❌ Lỗi khi lưu metafield:", metafieldResp.body.data.metafieldsSet.userErrors);
+} else {
+  console.log("✅ Lưu metafield JSON thành công");
+}
+
     res.json({
       success: true,
       file: {
@@ -249,5 +331,105 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
     res.status(500).json({ success: false, message: err.message });
   }
 });
+
+/**
+ * POST /api/admin/files/upload
+ * Upload file mới từ client lên Shopify
+ */
+router.post("/upload", shopify.validateAuthenticatedSession(), async (req, res) => {
+  try {
+    const { filename, bufferBase64, alt } = req.body;
+    if (!filename || !bufferBase64) {
+      return res.status(400).json({ success: false, message: "Thiếu filename hoặc bufferBase64" });
+    }
+
+    const client = new shopify.api.clients.Graphql({ session: res.locals.shopify.session });
+
+    // Decode buffer từ base64
+    const buffer = Buffer.from(bufferBase64, "base64");
+
+    // 1️⃣ stagedUploadsCreate
+    const stagedUploadResp = await client.query({
+      data: {
+        query: `
+          mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+            stagedUploadsCreate(input: $input) {
+              stagedTargets {
+                url
+                resourceUrl
+                parameters { name value }
+              }
+              userErrors { field message }
+            }
+          }
+        `,
+        variables: {
+          input: [
+            {
+              filename,
+              mimeType: "image/jpeg", // hoặc image/png tùy file
+              httpMethod: "POST",
+              resource: "FILE",
+            },
+          ],
+        },
+      },
+    });
+
+    const stagedTarget = stagedUploadResp.body.data.stagedUploadsCreate.stagedTargets[0];
+    if (!stagedTarget) throw new Error("Không tạo được stagedTarget");
+
+    // 2️⃣ Upload binary lên S3
+    const FormData = (await import("form-data")).default;
+    const form = new FormData();
+    stagedTarget.parameters.forEach((param) => {
+      form.append(param.name, param.value);
+    });
+    form.append("file", buffer, { filename, contentType: "image/jpeg" });
+
+    const s3Resp = await fetch(stagedTarget.url, { method: "POST", body: form });
+    if (!s3Resp.ok) throw new Error(`Upload S3 thất bại: ${s3Resp.statusText}`);
+
+    // 3️⃣ fileCreate
+    const fileCreateResp = await client.query({
+      data: {
+        query: `
+          mutation fileCreate($files: [FileCreateInput!]!) {
+            fileCreate(files: $files) {
+              files {
+                ... on MediaImage {
+                  id
+                  image { url width height }
+                }
+              }
+              userErrors { field message }
+            }
+          }
+        `,
+        variables: {
+          files: [
+            {
+              originalSource: stagedTarget.resourceUrl,
+              alt: alt || "",
+            },
+          ],
+        },
+      },
+    });
+
+    const result = fileCreateResp.body.data.fileCreate;
+    if (result.userErrors.length > 0) {
+      throw new Error(result.userErrors.map(e => e.message).join(", "));
+    }
+
+    const uploadedFile = result.files[0];
+    res.json({ success: true, file: uploadedFile });
+
+  } catch (err) {
+    console.error("❌ Error uploading file:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});
+
 
 export default router;
