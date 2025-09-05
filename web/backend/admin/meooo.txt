@@ -1,0 +1,116 @@
+router.post("/upload", shopify.validateAuthenticatedSession(), async (req, res) => {
+  try {
+    // ✅ Kiểm tra file
+    if (!req.files || !req.files.file) {
+      return res.status(400).json({ success: false, message: "Thiếu file" });
+    }
+    const file = req.files.file; // express-fileupload trả về Buffer trong file.data
+
+    const client = new shopify.api.clients.Graphql({ session: res.locals.shopify.session });
+
+    // 1️⃣ Tạo staged upload
+    const stagedUploadResp = await client.query({
+      data: {
+        query: `
+          mutation stagedUploadsCreate($input: [StagedUploadInput!]!) {
+            stagedUploadsCreate(input: $input) {
+              stagedTargets { url resourceUrl parameters { name value } }
+              userErrors { field message }
+            }
+          }
+        `,
+        variables: {
+          input: [
+            {
+              filename: file.name,
+              mimeType: file.mimetype,
+              httpMethod: "POST",
+              resource: "FILE",
+            },
+          ],
+        },
+      },
+    });
+
+    const stagedTarget = stagedUploadResp.body?.data?.stagedUploadsCreate?.stagedTargets?.[0];
+    if (!stagedTarget) throw new Error("Không có stagedTargets");
+
+    // 2️⃣ Upload lên Shopify S3
+    const form = new FormData();
+    stagedTarget.parameters.forEach((p) => form.append(p.name, p.value));
+    form.append("file", file.data, { filename: file.name, contentType: file.mimetype });
+
+    const s3Resp = await fetch(stagedTarget.url, { method: "POST", body: form });
+    if (!s3Resp.ok) throw new Error(`Upload S3 thất bại: ${s3Resp.statusText}`);
+
+    // 3️⃣ Tạo file trên Shopify
+    const fileCreateResp = await client.query({
+      data: {
+        query: `
+          mutation fileCreate($files: [FileCreateInput!]!) {
+            fileCreate(files: $files) {
+              files { ... on MediaImage { id image { url width height } } }
+              userErrors { field message }
+            }
+          }
+        `,
+        variables: { files: [{ originalSource: stagedTarget.resourceUrl, alt: file.name }] },
+      },
+    });
+
+    let uploadedFile = fileCreateResp.body.data.fileCreate.files[0];
+
+    // 4️⃣ Lưu vào DB
+    await ShopImage.create({
+      shop: res.locals.shopify.session.shop,
+      sourceType: "upload",
+      mediaImageId: uploadedFile.id,
+      url: uploadedFile.image?.url,
+      width: uploadedFile.image?.width,
+      height: uploadedFile.image?.height,
+      size: file.size,
+      filename: file.name,
+    });
+
+    // 5️⃣ Cập nhật metafield
+    const existing = await client.query({
+      data: {
+        query: `query($namespace: String!, $key: String!) {
+          shop { metafield(namespace: $namespace, key: $key) { id value } }
+        }`,
+        variables: { namespace: "files", key: "uploaded_images" },
+      },
+    });
+
+    let mapping = {};
+    const current = existing.body.data.shop.metafield;
+    if (current?.value) {
+      try { mapping = JSON.parse(current.value); } catch {}
+    }
+
+    mapping[file.name] = uploadedFile.image?.url;
+
+    const shopResp = await client.query({ data: `query { shop { id } }` });
+    const shopId = shopResp.body.data.shop.id;
+
+    await client.query({
+      data: {
+        query: `
+          mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+            metafieldsSet(metafields: $metafields) {
+              metafields { key namespace type value }
+              userErrors { field message }
+            }
+          }
+        `,
+        variables: { metafields: [{ namespace: "files", key: "uploaded_images", type: "json", value: JSON.stringify(mapping), ownerId: shopId }] },
+      },
+    });
+
+    res.json({ success: true, file: uploadedFile });
+
+  } catch (err) {
+    console.error("Error uploading file:", err);
+    res.status(500).json({ success: false, message: err.message });
+  }
+});

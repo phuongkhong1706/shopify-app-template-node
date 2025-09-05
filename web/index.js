@@ -15,6 +15,7 @@ import storeRouter from "./backend/admin/stores.js";
 import Store from "./models/Store.js";
 import productRouter from "./backend/admin/productslist.js";
 import filesApi from "./backend/admin/files.js";
+import fileUpload from "express-fileupload";
 
 const PORT = parseInt(
   process.env.BACKEND_PORT || process.env.PORT || "3000",
@@ -65,13 +66,17 @@ app.post(
 // If you are adding routes outside of the /api path, remember to
 // also add a proxy rule for them in web/frontend/vite.config.js
 
-
+app.use(fileUpload({
+  useTempFiles: false,
+  limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
+}));
 app.use(express.json()); 
+
 app.use("/api/admin", authRouter);
 app.use("/api/admin/stores", storeRouter); // danh sách store
 app.use("/api/admin/productslist", productRouter);
 app.use("/api/admin/files", shopify.validateAuthenticatedSession(),filesApi);
-    
+
 
 app.use("/api", shopify.validateAuthenticatedSession(), shopRouter);
 
