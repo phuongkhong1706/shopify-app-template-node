@@ -53,6 +53,8 @@ export default function PagesTab() {
     setSelectedPage(null);
     setTitle("");
     setBody("");
+    setTitleSuggestion("");
+    setBodySuggestion("");
   };
 
   // --- handle save ---
@@ -127,6 +129,15 @@ export default function PagesTab() {
     }
   };
 
+  // --- apply suggestion ---
+  const applySuggestion = () => {
+    if (titleSuggestion) setTitle(titleSuggestion);
+    if (bodySuggestion) setBody(bodySuggestion);
+    setToastContent("✅ Applied AI suggestions");
+    setToastError(false);
+    setShowToast(true);
+  };
+
   if (loading) return <Spinner accessibilityLabel="Loading pages" />;
 
   return (
@@ -178,7 +189,12 @@ export default function PagesTab() {
                   onChange={setBody}
                   multiline={6}
                 />
-                <Button onClick={handleSuggest}>AI Suggest</Button>
+                <Stack spacing="tight">
+                  <Button onClick={handleSuggest}>AI Suggest</Button>
+                  {(titleSuggestion || bodySuggestion) && (
+                    <Button onClick={applySuggestion}>Apply Suggestion</Button>
+                  )}
+                </Stack>
 
                 {titleSuggestion && (
                   <TextField

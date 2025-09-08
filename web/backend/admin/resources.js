@@ -111,19 +111,20 @@ router.get("/pages", async (req, res) => {
     }
 });
 
-router.post("/pages/:id", async (req, res) => {
-    try {
-        const session = res.locals.shopify.session;
-        const client = new shopify.api.clients.Graphql({ session });
-        const { title, body } = req.body;
+// ✅ Update page
+router.post("/pages", async (req, res) => {
+  try {
+    const session = res.locals.shopify.session;
+    const client = new shopify.api.clients.Graphql({ session });
+    const { id, title, bodyHtml } = req.body;
 
-        const mutation = `
+    const mutation = `
       mutation pageUpdate($input: PageInput!) {
         pageUpdate(input: $input) {
           page {
             id
             title
-            body
+            bodyHtml
           }
           userErrors {
             field
@@ -133,19 +134,20 @@ router.post("/pages/:id", async (req, res) => {
       }
     `;
 
-        const resp = await client.query({
-            data: {
-                query: mutation,
-                variables: { input: { id: req.params.id, title, body } },
-            },
-        });
+    const resp = await client.query({
+      data: {
+        query: mutation,
+        variables: { input: { id, title, bodyHtml } },
+      },
+    });
 
-        res.json(resp.body.data.pageUpdate);
-    } catch (err) {
-        console.error("❌ Update page failed:", err);
-        res.status(500).json({ error: "Failed to update page" });
-    }
+    res.json(resp.body.data.pageUpdate);
+  } catch (err) {
+    console.error("❌ Update page failed:", err);
+    res.status(500).json({ error: "Failed to update page" });
+  }
 });
+
 
 router.get("/blogs", async (req, res) => {
     try {
