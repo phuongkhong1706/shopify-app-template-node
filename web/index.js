@@ -3,6 +3,8 @@ import { join } from "path";
 import { readFileSync } from "fs";
 import express from "express";
 import serveStatic from "serve-static";
+import dotenv from "dotenv";
+dotenv.config();
 
 import shopify from "./shopify.js";
 import productCreator from "./backend/product-creator.js";
@@ -16,6 +18,7 @@ import Store from "./models/Store.js";
 import productRouter from "./backend/admin/productslist.js";
 import filesApi from "./backend/admin/files.js";
 import fileUpload from "express-fileupload";
+import resourcesRouter from "./backend/admin/resources.js";
 
 const PORT = parseInt(
   process.env.BACKEND_PORT || process.env.PORT || "3000",
@@ -76,7 +79,7 @@ app.use("/api/admin", authRouter);
 app.use("/api/admin/stores", storeRouter); // danh sách store
 app.use("/api/admin/productslist", productRouter);
 app.use("/api/admin/files", shopify.validateAuthenticatedSession(),filesApi);
-
+app.use("/api/admin/resources", shopify.validateAuthenticatedSession(), resourcesRouter);
 
 app.use("/api", shopify.validateAuthenticatedSession(), shopRouter);
 
@@ -150,20 +153,17 @@ app.get("/api/products/list", async (req, res) => {
 app.use(shopify.cspHeaders());
 app.use(serveStatic(STATIC_PATH, { index: false }));
 
-// ⚡ Serve standalone path /admin/*
-app.get("/admin/*", async (_req, res) => {
-  return res
+// Serve standalone admin UI
+app.use("/admin", async (_req, res) => {
+  res
     .status(200)
     .set("Content-Type", "text/html")
-    .send(
-      readFileSync(join(STATIC_PATH, "index.html")).toString()
-        // Không cần replace API_KEY vì UI này không embed trong Shopify
-    );
+    .send(readFileSync(join(STATIC_PATH, "index.html")).toString());
 });
 
-
-app.use("/*", shopify.ensureInstalledOnShop(), async (_req, res, _next) => {
-  return res
+// Serve all other paths (embedded app)
+app.use(/.*/, shopify.ensureInstalledOnShop(), async (_req, res) => {
+  res
     .status(200)
     .set("Content-Type", "text/html")
     .send(
