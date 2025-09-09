@@ -114,10 +114,6 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
               id
               image { url width height }
               alt
-              metafield(namespace: "optimized_files", key: "optimized_image") {
-                id
-                value
-              }
             }
           }
         }`,
@@ -144,23 +140,6 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
       .toBuffer();
 
     console.log("✅ Optimize xong, kích thước ảnh:", optimizedBuffer.length, "bytes");
-
-    // 4️⃣ Nếu đã có optimized cũ → xoá đi
-    if (node.metafield?.value) {
-      const oldFileId = node.metafield.value;
-      console.log("🗑️ Xoá optimized cũ:", oldFileId);
-      await client.query({
-        data: {
-          query: `mutation fileDelete($fileIds: [ID!]!) {
-            fileDelete(fileIds: $fileIds) {
-              deletedFileIds
-              userErrors { field message }
-            }
-          }`,
-          variables: { fileIds: [oldFileId] },
-        },
-      });
-    }
 
     // 4️⃣ stagedUploadsCreate
     const stagedUploadResp = await client.query({
@@ -257,31 +236,6 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
       if (retryFile) optimizedFile = retryFile;
     }
 
-    // 8️⃣ Ghi đè metafield optimized_image trên MediaImage
-    await client.query({
-      data: {
-        query: `
-          mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
-            metafieldsSet(metafields: $metafields) {
-              metafields { id key namespace value }
-              userErrors { field message }
-            }
-          }
-        `,
-        variables: {
-          metafields: [
-            {
-              namespace: "optimized_files",
-              key: "optimized_image",
-              type: "single_line_text_field",
-              value: optimizedFile.id,
-              ownerId: node.id, // gắn trực tiếp vào MediaImage
-            },
-          ],
-        },
-      },
-    });
-
     // ✅ Lưu vào MongoDB
     await ShopImage.create({
       shop: res.locals.shopify.session.shop,
@@ -296,6 +250,73 @@ router.post("/optimize/:id", shopify.validateAuthenticatedSession(), async (req,
       filename: `optimized-${id}.jpg`,
     });
     console.log("✅ Lưu ShopImage vào DB thành công");
+    
+    // ✅ Lấy metafield cũ (optimized_images)
+const existing = await client.query({
+  data: {
+    query: `
+      query getShopMetafield($namespace: String!, $key: String!) {
+        shop {
+          metafield(namespace: $namespace, key: $key) {
+            id
+            value
+          }
+        }
+      }
+    `,
+    variables: { namespace: "optimized_files", key: "optimized_images" },
+  },
+});
+
+let mapping = {};
+const current = existing.body.data.shop.metafield;
+if (current?.value) {
+  try {
+    mapping = JSON.parse(current.value);
+  } catch (e) {
+    console.warn("⚠️ Không parse được metafield JSON:", e);
+  }
+}
+
+// ✅ Cập nhật mapping mới
+mapping[node.image.url] = optimizedFile.image?.url;
+
+// Lấy globalId của shop
+const shopResp = await client.query({
+  data: `query { shop { id } }`,
+});
+const shopId = shopResp.body.data.shop.id;
+
+// ✅ Ghi lại metafield JSON
+const metafieldResp = await client.query({
+  data: {
+    query: `
+      mutation metafieldsSet($metafields: [MetafieldsSetInput!]!) {
+        metafieldsSet(metafields: $metafields) {
+          metafields { key namespace type value }
+          userErrors { field message }
+        }
+      }
+    `,
+    variables: {
+      metafields: [
+        {
+          namespace: "files",
+          key: "optimized_images",
+          type: "json",
+          value: JSON.stringify(mapping),
+          ownerId: shopId, // shop
+        },
+      ],
+    },
+  },
+});
+
+if (metafieldResp.body.data.metafieldsSet.userErrors.length > 0) {
+  console.error("❌ Lỗi khi lưu metafield:", metafieldResp.body.data.metafieldsSet.userErrors);
+} else {
+  console.log("✅ Lưu metafield JSON thành công");
+}
 
     res.json({
       success: true,

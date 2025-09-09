@@ -51,19 +51,24 @@ export default function Files() {
             const data = await resp.json();
 
             if (data.success) {
-                setFiles((prev) => [
-                    ...prev,
-                    {
-                        id: data.file.id,
-                        image: {
-                            url: data.file.url,
-                            width: data.file.width,
-                            height: data.file.height,
-                        },
-                        size: data.file.size,
-                    },
-                ]);
-            } else {
+                setFiles((prev) =>
+                    prev.map((file) =>
+                        getNumericIdFromGid(file.id) === fileId
+                            ? {
+                                ...file,
+                                id: data.file.id, // cập nhật id optimized mới
+                                image: {
+                                    url: data.file.url,
+                                    width: data.file.width,
+                                    height: data.file.height,
+                                },
+                                size: data.file.size,
+                            }
+                            : file
+                    )
+                );
+            }
+            else {
                 alert("Optimize thất bại: " + data.message);
             }
         } catch (err) {
@@ -123,7 +128,7 @@ export default function Files() {
                         <Text as="h2" variant="headingMd">Danh sách File</Text>
                         <div>
                             <Button
-                                
+
                                 loading={uploading}
                                 onClick={() => document.getElementById("fileInput").click()}
                             >
