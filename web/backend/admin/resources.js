@@ -14,11 +14,11 @@ const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
 // ✅ Lấy danh sách product
 router.get("/products", async (req, res) => {
-    try {
-        const session = res.locals.shopify.session;
-        const client = new shopify.api.clients.Graphql({ session });
+  try {
+    const session = res.locals.shopify.session;
+    const client = new shopify.api.clients.Graphql({ session });
 
-        const query = `
+    const query = `
       {
         products(first: 20) {
           edges {
@@ -32,14 +32,14 @@ router.get("/products", async (req, res) => {
       }
     `;
 
-        const resp = await client.query({ data: query });
-        const products = resp.body.data.products.edges.map(e => e.node);
+    const resp = await client.query({ data: query });
+    const products = resp.body.data.products.edges.map(e => e.node);
 
-        res.json({ products });
-    } catch (err) {
-        console.error("❌ Fetch products failed:", err);
-        res.status(500).json({ error: "Failed to fetch products" });
-    }
+    res.json({ products });
+  } catch (err) {
+    console.error("❌ Fetch products failed:", err);
+    res.status(500).json({ error: "Failed to fetch products" });
+  }
 });
 
 // ✅ Update product
@@ -84,11 +84,11 @@ router.post("/products", async (req, res) => {
  * ====== PAGES (optional) ======
  */
 router.get("/pages", async (req, res) => {
-    try {
-        const session = res.locals.shopify.session;
-        const client = new shopify.api.clients.Graphql({ session });
+  try {
+    const session = res.locals.shopify.session;
+    const client = new shopify.api.clients.Graphql({ session });
 
-        const query = `
+    const query = `
       {
         pages(first: 20) {
           edges {
@@ -101,30 +101,37 @@ router.get("/pages", async (req, res) => {
         }
       }
     `;
-        const resp = await client.query({ data: query });
-        const pages = resp.body.data.pages.edges.map(e => e.node);
+    const resp = await client.query({ data: query });
+    const pages = resp.body.data.pages.edges.map(e => e.node);
 
-        res.json({ pages });
-    } catch (err) {
-        console.error("❌ Fetch pages failed:", err);
-        res.status(500).json({ error: "Failed to fetch pages" });
-    }
+    res.json({ pages });
+  } catch (err) {
+    console.error("❌ Fetch pages failed:", err);
+    res.status(500).json({ error: "Failed to fetch pages" });
+  }
 });
 
-// ✅ Update page
+
+// POST /api/admin/resources/pages
 router.post("/pages", async (req, res) => {
+  const { id, title, body } = req.body; // frontend gửi `body` thay vì `bodyHtml`
+
+  if (!id || !title || body === undefined) {
+    return res.status(400).json({ success: false, message: "Missing fields" });
+  }
+
   try {
     const session = res.locals.shopify.session;
     const client = new shopify.api.clients.Graphql({ session });
-    const { id, title, bodyHtml } = req.body;
 
     const mutation = `
-      mutation pageUpdate($input: PageInput!) {
-        pageUpdate(input: $input) {
+      mutation UpdatePage($id: ID!, $page: PageUpdateInput!) {
+        pageUpdate(id: $id, page: $page) {
           page {
             id
             title
-            bodyHtml
+            body
+            handle
           }
           userErrors {
             field
@@ -134,27 +141,29 @@ router.post("/pages", async (req, res) => {
       }
     `;
 
-    const resp = await client.query({
-      data: {
-        query: mutation,
-        variables: { input: { id, title, bodyHtml } },
-      },
-    });
+    const pageInput = { title, body }; // chỉ cập nhật title + body
+    const variables = { id, page: pageInput };
 
-    res.json(resp.body.data.pageUpdate);
-  } catch (err) {
-    console.error("❌ Update page failed:", err);
-    res.status(500).json({ error: "Failed to update page" });
+    const response = await client.query({ data: { query: mutation, variables } });
+    const { pageUpdate } = response.body.data;
+
+    if (pageUpdate.userErrors.length) {
+      return res.status(400).json({ success: false, userErrors: pageUpdate.userErrors });
+    }
+
+    return res.json({ success: true, page: pageUpdate.page });
+  } catch (error) {
+    console.error("❌ Update page failed:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 });
 
-
 router.get("/blogs", async (req, res) => {
-    try {
-        const session = res.locals.shopify.session;
-        const client = new shopify.api.clients.Graphql({ session });
+  try {
+    const session = res.locals.shopify.session;
+    const client = new shopify.api.clients.Graphql({ session });
 
-        const query = `
+    const query = `
       query BlogsWithArticles($first: Int!, $articlesFirst: Int!) {
         blogs(first: $first) {
           edges {
@@ -178,50 +187,50 @@ router.get("/blogs", async (req, res) => {
       }
     `;
 
-        const resp = await client.query({
-            data: {
-                query,
-                variables: {
-                    first: 5,
-                    articlesFirst: 10,
-                },
-            },
-        });
+    const resp = await client.query({
+      data: {
+        query,
+        variables: {
+          first: 5,
+          articlesFirst: 10,
+        },
+      },
+    });
 
-        // Lấy dữ liệu gốc từ API
-        const rawBlogs = resp.body.data.blogs.edges;
+    // Lấy dữ liệu gốc từ API
+    const rawBlogs = resp.body.data.blogs.edges;
 
-        // Chuyển về dạng gọn hơn
-        const blogs = rawBlogs.map(edge => {
-            const blog = edge.node;
-            return {
-                id: blog.id,
-                title: blog.title,
-                handle: blog.handle,
-                articles: blog.articles.edges.map(a => ({
-                    id: a.node.id,
-                    title: a.node.title,
-                    handle: a.node.handle,
-                    body: a.node.body,
-                })),
-            };
-        });
-        // Trả dữ liệu về frontend
-        res.json({ blogs });
-    } catch (err) {
-        console.error("❌ Fetch blogs failed:", err);
-        res.status(500).json({ error: "Failed to fetch blogs" });
-    }
+    // Chuyển về dạng gọn hơn
+    const blogs = rawBlogs.map(edge => {
+      const blog = edge.node;
+      return {
+        id: blog.id,
+        title: blog.title,
+        handle: blog.handle,
+        articles: blog.articles.edges.map(a => ({
+          id: a.node.id,
+          title: a.node.title,
+          handle: a.node.handle,
+          body: a.node.body,
+        })),
+      };
+    });
+    // Trả dữ liệu về frontend
+    res.json({ blogs });
+  } catch (err) {
+    console.error("❌ Fetch blogs failed:", err);
+    res.status(500).json({ error: "Failed to fetch blogs" });
+  }
 });
 
 
-router.post("/blogs/:id", async (req, res) => {
-    try {
-        const session = res.locals.shopify.session;
-        const client = new shopify.api.clients.Graphql({ session });
-        const { title, contentHtml } = req.body;
+router.post("/blogs", async (req, res) => {
+  try {
+    const session = res.locals.shopify.session;
+    const client = new shopify.api.clients.Graphql({ session });
+    const { id, title, bodyHtml } = req.body;
 
-        const mutation = `
+    const mutation = `
       mutation articleUpdate($input: ArticleInput!) {
         articleUpdate(input: $input) {
           article {
@@ -237,19 +246,22 @@ router.post("/blogs/:id", async (req, res) => {
       }
     `;
 
-        const resp = await client.query({
-            data: {
-                query: mutation,
-                variables: { input: { id: req.params.id, title, contentHtml } },
-            },
-        });
+    const resp = await client.query({
+      data: {
+        query: mutation,
+        variables: {
+          input: { id, title, contentHtml: bodyHtml },
+        },
+      },
+    });
 
-        res.json(resp.body.data.articleUpdate);
-    } catch (err) {
-        console.error("❌ Update article failed:", err);
-        res.status(500).json({ error: "Failed to update article" });
-    }
+    res.json(resp.body.data.articleUpdate);
+  } catch (err) {
+    console.error("❌ Update article failed:", err);
+    res.status(500).json({ error: "Failed to update article" });
+  }
 });
+
 
 
 

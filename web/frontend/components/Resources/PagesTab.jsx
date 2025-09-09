@@ -29,6 +29,7 @@ export default function PagesTab() {
   const [toastError, setToastError] = useState(false);
   const [showToast, setShowToast] = useState(false);
 
+  // --- fetch pages ---
   useEffect(() => {
     fetch("/api/admin/resources/pages")
       .then((res) => res.json())
@@ -57,48 +58,48 @@ export default function PagesTab() {
     setBodySuggestion("");
   };
 
-  // --- handle save ---
-  const handleSave = async () => {
-    try {
-      const resp = await fetch(`/api/admin/resources/pages`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          id: selectedPage.id,
-          title,
-          bodyHtml: body,
-        }),
-      });
+const handleSave = async () => {
+  try {
+    const resp = await fetch(`/api/admin/resources/pages`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        id: selectedPage.id,
+        title,
+        body, // nội dung HTML
+      }),
+    });
 
-      const data = await resp.json();
+    const data = await resp.json();
 
-      if (data.userErrors?.length) {
-        console.error("❌ Update failed:", data.userErrors);
-        setToastContent(data.userErrors[0].message);
-        setToastError(true);
-        setShowToast(true);
-      } else {
-        console.log("✅ Update success:", data.page);
-        setToastContent("Page updated successfully");
-        setToastError(false);
-        setShowToast(true);
-
-        setPages((prev) =>
-          prev.map((p) =>
-            p.id === selectedPage.id ? { ...p, title, bodySummary: body } : p
-          )
-        );
-        handleClose();
-      }
-    } catch (err) {
-      console.error("❌ Save error:", err);
-      setToastContent("❌ Network error");
+    if (data.userErrors?.length) {
+      console.error("❌ Update failed:", data.userErrors);
+      setToastContent(data.userErrors[0].message);
       setToastError(true);
       setShowToast(true);
+    } else {
+      console.log("✅ Update success:", data.page);
+      setToastContent("Page updated successfully");
+      setToastError(false);
+      setShowToast(true);
+
+      // Cập nhật state
+      setPages((prev) =>
+        prev.map((p) =>
+          p.id === selectedPage.id ? { ...p, title, bodySummary: body } : p
+        )
+      );
+      handleClose();
     }
-  };
+  } catch (err) {
+    console.error("❌ Save error:", err);
+    setToastContent("❌ Network error");
+    setToastError(true);
+    setShowToast(true);
+  }
+};
 
   // --- handle AI suggest ---
   const handleSuggest = async () => {
