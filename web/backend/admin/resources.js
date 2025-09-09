@@ -158,6 +158,11 @@ router.post("/pages", async (req, res) => {
   }
 });
 
+
+
+/**
+ * ====== blogs (optional) ======
+ */
 router.get("/blogs", async (req, res) => {
   try {
     const session = res.locals.shopify.session;
@@ -223,7 +228,6 @@ router.get("/blogs", async (req, res) => {
   }
 });
 
-
 router.post("/blogs", async (req, res) => {
   try {
     const session = res.locals.shopify.session;
@@ -231,12 +235,13 @@ router.post("/blogs", async (req, res) => {
     const { id, title, bodyHtml } = req.body;
 
     const mutation = `
-      mutation articleUpdate($input: ArticleInput!) {
-        articleUpdate(input: $input) {
+      mutation articleUpdate($id: ID!, $article: ArticleUpdateInput!) {
+        articleUpdate(id: $id, article: $article) {
           article {
             id
             title
-            contentHtml
+            handle
+            body
           }
           userErrors {
             field
@@ -250,7 +255,8 @@ router.post("/blogs", async (req, res) => {
       data: {
         query: mutation,
         variables: {
-          input: { id, title, contentHtml: bodyHtml },
+          id,
+          article: { title, body: bodyHtml },
         },
       },
     });
