@@ -19,7 +19,7 @@
     "formdata-node": "^6.0.3",
     "mongoose": "^8.18.0",
     "node-fetch": "^3.3.2",
-    "openai": "^5.19.1",
+    "openai": "^5.20.1",
     "sharp": "^0.34.3"
   }
 }
